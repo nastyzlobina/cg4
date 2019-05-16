@@ -83,9 +83,9 @@ int getZOfIntersection(int y, double z0, int y0, double z1, int y1) {
 
 void triangle(int coords[3][2], double zcoords[], tgaColor color, tgaImage *image, double **zindex) {
     // ...
-    // screen_coords[j][0], screen_coords[j][1] пїЅпїЅпїЅ j пїЅпїЅ 0 пїЅпїЅ 2 - пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ. пїЅпїЅпїЅпїЅпїЅ
+    // screen_coords[j][0], screen_coords[j][1] для j от 0 до 2 - это экранные координаты вершин тек. грани
 
-    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ screen_coords пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ "y"
+    // Расположим screen_coords в порядке возрастания "y"
     sortCoordsByY(coords, zcoords);
 
     for (int y = coords[0][1]; y <= coords[2][1]; y++) {
@@ -103,6 +103,7 @@ void triangle(int coords[3][2], double zcoords[], tgaColor color, tgaImage *imag
             : getZOfIntersection(y, zcoords[0], coords[0][1], zcoords[2], coords[2][1]);
         int xStart, xEnd;
         double zStart, zEnd;
+        int z;
         if (xA < xB) {
             xStart = xA;
             xEnd = xB;
@@ -114,14 +115,15 @@ void triangle(int coords[3][2], double zcoords[], tgaColor color, tgaImage *imag
             zStart = zB;
             zEnd = zA;
         }
-        int z;
-        if (xStart < xEnd) {
-            for (int x = xStart; x <= xEnd; x++) {
+        for (int x = xStart; x <= xEnd; x++) {
+            if (zStart == zEnd || xStart == xEnd) {
+                z = zEnd;
+            } else {
                 z = ((double)(x - xStart) / (xEnd - xStart)) * (zEnd - zStart) + zStart;
-                if (z > zindex[x][y]) {
-                    zindex[x][y] = z;
-                    tgaSetPixel(image, (unsigned int)x, (unsigned int)y, color);
-                }
+            }
+            if (z > zindex[x][y]) {
+                zindex[x][y] = z;
+                tgaSetPixel(image, (unsigned int)x, (unsigned int)y, color);
             }
         }
     }
@@ -144,7 +146,7 @@ void getNormal_(const Vec3 planePoints[], double *normal) {
     normal[2] = ax * by - ay * bx;
 }
 
-void rotateAndMove(Vec3 *point) {
+void rotate(Vec3 *point, double angleDegree) {
     /*
     double cx0 = 0, cy0 = 0, cz0 = 0;
     double del = 2;
@@ -157,12 +159,11 @@ void rotateAndMove(Vec3 *point) {
     // 180 - pi
     // 30 - ?
 
-    double angleDegree = 30;
-    double angle = 3.141592 * angleDegree / 180;
+    double angle = 3.141592653 * angleDegree / 180;
 
     (*point)[0] = x * cos(angle) - z * sin(angle);// -z + 0.25;
     (*point)[1] = y;// y - 0.25;
-    (*point)[2] = z * cos(angle) - x * sin(angle);//  x;
+    (*point)[2] = z * cos(angle) + x * sin(angle);//  x;
 }
 
 void meshgrid(tgaImage *image, Model *model) {
@@ -176,39 +177,39 @@ void meshgrid(tgaImage *image, Model *model) {
         }
     }
     int i, j;
-    // nface - пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ
-    // faces[i] - i-пїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
-    // пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ 3пїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
-    // пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ - пїЅпїЅпїЅ 3 пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (x; y; z)
-    // пїЅпїЅпїЅпїЅпїЅпїЅпїЅ faces[i] пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅ 9 пїЅпїЅпїЅпїЅпїЅ
-    //   faces[i][0] - пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
-    //   faces[i][1] - пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
-    //   faces[i][2] - пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
-    //   faces[i][3] - пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
-    //   faces[i][4] - пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
-    //   faces[i][5] - пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
-    //   faces[i][6] - пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
-    //   faces[i][7] - пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
-    //   faces[i][8] - пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
+    // nface - число граней
+    // faces[i] - i-ая грань
+    // Грань задаётся 3мя точками
+    // Каждая точка - это 3 координаты (x; y; z)
+    // Поэтому faces[i] является массивом из 9 чисел
+    //   faces[i][0] - номер вершины первой точки
+    //   faces[i][1] - номер текстурной вершины первой точки
+    //   faces[i][2] - номер нормали первой точки
+    //   faces[i][3] - номер вершины второй точки
+    //   faces[i][4] - номер текстурной вершины второй точки
+    //   faces[i][5] - номер нормали второй точки
+    //   faces[i][6] - номер вершины третьей точки
+    //   faces[i][7] - номер текстурной вершины третьей точки
+    //   faces[i][8] - номер нормали третьей точки
     for (i = 0; i < model->nface; ++i) {
-        int screen_coords[3][2]; // пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
+        int screen_coords[3][2]; // Переводим в экранные координаты
         Vec3 facePoints[3];
         double zcoords[3];
         double N[3];
         for (j = 0; j < 3; ++j) {
             Vec3 v;
             memcpy(&v, &(model->vertices[model->faces[i][3 * j]]), sizeof(Vec3));
-            rotateAndMove(&v);
+            rotate(&v, 30);
             memcpy(&(facePoints[j]), &v, sizeof(Vec3));
             screen_coords[j][0] = (v[0] + 1) * image->width / 2;
             screen_coords[j][1] = (1 - v[1]) * image->height / 2;
             zcoords[j] = v[2];
         }
         getNormal_(facePoints, N);
-        // ld пїЅпїЅпїЅпїЅпїЅпїЅ light direction
+        // ld значит light direction
         double ld[] = { 0., 0., -1. };
-        // (ax; ay; az) = пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ
-        // (bx; by; bz) = пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ
+        // (ax; ay; az) = координаты нормали
+        // (bx; by; bz) = координаты направления распространения света
         // cos(teta) = (ax*bx + ay*by + az*bz) /
         //             (sqrt(ax^2+ay^2+az^2)*sqrt(bx^2+by^2+bz^2))
         double I = (N[0]*ld[0] + N[1]*ld[1] + N[2]*ld[2])
@@ -220,7 +221,7 @@ void meshgrid(tgaImage *image, Model *model) {
             tgaColor color = tgaRGB((int)(I * 255), (int)(I * 255), (int)(I * 255));
             triangle(screen_coords, zcoords, color, image, zindex);
         }
-    }	
+    }
     for (int i = 0; i < image->width; i++) {
         free(zindex[i]);
     }
