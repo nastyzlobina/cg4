@@ -65,16 +65,16 @@ void sortCoordsByY(int coords[3][2], double zcoords[3]) {
 
 int getXOfIntersection(int y, int x0, int y0, int x1, int y1) {
     int yDiff = y1 - y0;
-    if (yDiff == 0) {
+    if (yDiff == 0 || x1 - x0 == 0) {
         return x0;
     }
     double k = (y - y0) / (double)yDiff;
     return x0 + k*(x1 - x0);
 }
 
-int getZOfIntersection(int y, double z0, int y0, double z1, int y1) {
+double getZOfIntersection(int y, double z0, int y0, double z1, int y1) {
     int yDiff = y1 - y0;
-    if (yDiff == 0) {
+    if (yDiff == 0 || z1 - z0 == 0) {
         return z0;
     }
     double k = (y - y0) / (double)yDiff;
@@ -89,21 +89,24 @@ void triangle(int coords[3][2], double zcoords[], tgaColor color, tgaImage *imag
     sortCoordsByY(coords, zcoords);
 
     for (int y = coords[0][1]; y <= coords[2][1]; y++) {
-        int xA = y > coords[1][1]
-            ? getXOfIntersection(y, coords[2][0], coords[2][1], coords[1][0], coords[1][1])
-            : getXOfIntersection(y, coords[0][0], coords[0][1], coords[1][0], coords[1][1]);
-        int xB = y > coords[2][1]
-            ? getXOfIntersection(y, coords[2][0], coords[2][1], coords[1][0], coords[1][1])
-            : getXOfIntersection(y, coords[0][0], coords[0][1], coords[2][0], coords[2][1]);
-        double zA = y > coords[1][1]
-            ? getZOfIntersection(y, zcoords[2], coords[2][1], zcoords[1], coords[1][1])
-            : getZOfIntersection(y, zcoords[0], coords[0][1], zcoords[1], coords[1][1]);
-        double zB = y > coords[2][1]
-            ? getZOfIntersection(y, zcoords[2], coords[2][1], zcoords[1], coords[1][1])
-            : getZOfIntersection(y, zcoords[0], coords[0][1], zcoords[2], coords[2][1]);
+        int xA, xB;
+        double zA, zB;
+        if (y > coords[1][1]) {
+            xA = getXOfIntersection(y, coords[2][0], coords[2][1], coords[1][0], coords[1][1]);
+            zA = getZOfIntersection(y, zcoords[2], coords[2][1], zcoords[1], coords[1][1]);
+        } else {
+            xA = getXOfIntersection(y, coords[0][0], coords[0][1], coords[1][0], coords[1][1]);
+            zA = getZOfIntersection(y, zcoords[0], coords[0][1], zcoords[1], coords[1][1]);
+        }
+        if (y > coords[2][1]) {
+            xB = getXOfIntersection(y, coords[2][0], coords[2][1], coords[1][0], coords[1][1]);
+            zB = getZOfIntersection(y, zcoords[2], coords[2][1], zcoords[1], coords[1][1]);
+        } else {
+            xB = getXOfIntersection(y, coords[0][0], coords[0][1], coords[2][0], coords[2][1]);
+            zB = getZOfIntersection(y, zcoords[0], coords[0][1], zcoords[2], coords[2][1]);
+        }
         int xStart, xEnd;
-        double zStart, zEnd;
-        int z;
+        double zStart, zEnd, z;
         if (xA < xB) {
             xStart = xA;
             xEnd = xB;
@@ -116,6 +119,7 @@ void triangle(int coords[3][2], double zcoords[], tgaColor color, tgaImage *imag
             zEnd = zA;
         }
         for (int x = xStart; x <= xEnd; x++) {
+            if (x < 0 || y < 0 || x >= image->width || y >= image->height) continue;
             if (zStart == zEnd || xStart == xEnd) {
                 z = zEnd;
             } else {
@@ -161,19 +165,19 @@ void rotate(Vec3 *point, double angleDegree) {
 
     double angle = 3.141592653 * angleDegree / 180;
 
-    (*point)[0] = x * cos(angle) - z * sin(angle);// -z + 0.25;
-    (*point)[1] = y;// y - 0.25;
-    (*point)[2] = z * cos(angle) + x * sin(angle);//  x;
+    (*point)[0] = x * cos(angle) + z * sin(angle);// -z + 0.25;
+    (*point)[1] = y - 0.25;
+    (*point)[2] = z * cos(angle) - x * sin(angle);//  x;
 }
 
-void meshgrid(tgaImage *image, Model *model) {
+void meshgrid(tgaImage *image, Model *model, double angle) {
     double **zindex = malloc(sizeof(void*) * image->width);
     for (int i = 0; i < image->width; i++) {
         zindex[i] = malloc(sizeof(double) * image->height);
     }
     for (int i = 0; i < image->width; i++) {
         for (int j = 0; j < image->height; j++) {
-            zindex[i][j] = -10.e9;
+            zindex[i][j] = -10000000000000.;
         }
     }
     int i, j;
@@ -199,7 +203,7 @@ void meshgrid(tgaImage *image, Model *model) {
         for (j = 0; j < 3; ++j) {
             Vec3 v;
             memcpy(&v, &(model->vertices[model->faces[i][3 * j]]), sizeof(Vec3));
-            rotate(&v, 30);
+            rotate(&v, angle);
             memcpy(&(facePoints[j]), &v, sizeof(Vec3));
             screen_coords[j][0] = (v[0] + 1) * image->width / 2;
             screen_coords[j][1] = (1 - v[1]) * image->height / 2;
@@ -214,13 +218,15 @@ void meshgrid(tgaImage *image, Model *model) {
         //             (sqrt(ax^2+ay^2+az^2)*sqrt(bx^2+by^2+bz^2))
         double I = (N[0]*ld[0] + N[1]*ld[1] + N[2]*ld[2])
             / (sqrt(N[0]*N[0] + N[1]*N[1] + N[2]*N[2]) * sqrt(ld[0]*ld[0] + ld[1]*ld[1] + ld[2]*ld[2]));
+        tgaColor color;
         if (I > 0) {
-            I = 0;
+            //I = 0;
+            //color = tgaRGB((int)(0), (int)(255), (int)(0));
         } else {
             I = -I;
-            tgaColor color = tgaRGB((int)(I * 255), (int)(I * 255), (int)(I * 255));
-            triangle(screen_coords, zcoords, color, image, zindex);
         }
+        color = tgaRGB((int)(I * 255), (int)(I * 255), (int)(I * 0));
+        triangle(screen_coords, zcoords, color, image, zindex);
     }
     for (int i = 0; i < image->width; i++) {
         free(zindex[i]);
@@ -231,17 +237,22 @@ void meshgrid(tgaImage *image, Model *model) {
 int main()
 {
     srand((unsigned)time(NULL));
-	Model *model = loadFromObj("C:\\Users\\nasty\\source\\repos\\Project1\\Project1\\obj\\cat.obj");
-  
-	int height = 800;
-    int width = 800;
-    tgaImage * image = tgaNewImage(height, width, RGB);
+    Model *model = loadFromObj("C:\\Users\\nasty\\source\\repos\\Project1\\Project1\\obj\\cat.obj");
 
-	meshgrid(image, model);
-	tgaSaveToFile(image, "out.tga");
-    int i;
+    for (double angle = 0; angle <= 360; angle += 20) {
+        int height = 800;
+        int width = 800;
+        tgaImage * image = tgaNewImage(height, width, RGB);
 
-    tgaFreeImage(image);    
+        meshgrid(image, model, angle);
+        char fname[40];
+        strcpy(fname, "out");
+        char buf[40];
+        strcat(fname, _itoa(angle, buf, 10));
+        strcat(fname, ".tga");
+        tgaSaveToFile(image, fname);
+        tgaFreeImage(image);
+    }
 	freeModel(model);
     _getch();
     return 0;
